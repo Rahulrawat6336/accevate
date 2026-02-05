@@ -1,44 +1,115 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, { useEffect, useState } from 'react';
+import { Provider, useDispatch, useSelector } from 'react-redux';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import store from './src/redux/store';
+import { loadToken } from './src/redux/slices/otpSlice';
+import { setUserId } from './src/redux/slices/authSlice';
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+import LoginScreen from './src/screens/LoginScreen';
+import OtpVerificationScreen from './src/screens/OtpVerificationScreen';
+import DashboardScreen from './src/screens/DashboardScreen';
+
+const Stack = createNativeStackNavigator();
+
+// Navigation component with authentication check
+function AppNavigator() {
+  const dispatch = useDispatch();
+  const { token } = useSelector(state => state.otp);
+  const [isLoading, setIsLoading] = useState(true);
+  const [initialRoute, setInitialRoute] = useState('Login');
+
+  useEffect(() => {
+    checkAuthStatus();
+  }, []);
+
+  const checkAuthStatus = async () => {
+    try {
+      // Load token from AsyncStorage
+      const result = await dispatch(loadToken());
+
+      if (result.payload && result.payload.token) {
+        // User is logged in, set userId and navigate to Dashboard
+        if (result.payload.userId) {
+          dispatch(setUserId(result.payload.userId));
+        }
+        setInitialRoute('Dashboard');
+      } else {
+        // No token found, stay on Login
+        setInitialRoute('Login');
+      }
+    } catch (error) {
+      console.error('Error checking auth status:', error);
+      setInitialRoute('Login');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#667eea" />
+      </View>
+    );
+  }
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
-    </SafeAreaProvider>
+    <NavigationContainer>
+      <Stack.Navigator
+        initialRouteName={initialRoute}
+        screenOptions={{
+          headerShown: false,
+          animation: 'slide_from_right',
+        }}
+      >
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
+          options={{
+            title: 'Login',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="OtpVerification"
+          component={OtpVerificationScreen}
+          options={{
+            title: 'OTP Verification',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="Dashboard"
+          component={DashboardScreen}
+          options={{
+            title: 'Dashboard',
+            headerShown: false,
+            gestureEnabled: false, // Disable swipe back on Dashboard
+          }}
+        />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
 
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
-
+function App(): React.JSX.Element {
   return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
+    <Provider store={store}>
+      <AppNavigator />
+    </Provider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  loadingContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
   },
 });
 
